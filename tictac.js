@@ -21,7 +21,6 @@ const html = `
             color: #333;
         }
 
-        /* Main game border */
         .game-container {
             max-width: 450px;
             margin: 20px auto;
@@ -30,6 +29,43 @@ const html = `
             border-radius: 15px;
             background: white;
             box-sizing: border-box;
+        }
+        
+        .exit-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            z-index: 100;
+
+            width: 40px;
+            height: 40px;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            background: transparent;
+            border: 2px solid #e53935;
+            border-radius: 50%;
+
+            color: #e53935;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .exit-btn svg {
+            width: 25px;
+            height: 25px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .exit-btn:hover {
+            background: #ffe5e5;
+            transform: scale(1.1);
         }
 
         .symbol-choice {
@@ -43,7 +79,6 @@ const html = `
             border-radius: 5px;
         }
 
-        /* Player X and O boxes */
         .players {
             display: flex;
             justify-content: center;
@@ -75,7 +110,6 @@ const html = `
             margin: 25px auto;
         }
 
-        /* Empty boxes remain white */
         .cell {
             height: 100px;
             width: 100px;
@@ -88,24 +122,94 @@ const html = `
             border-radius: 5px;
         }
 
-        /* Only the box clicked by X becomes aqua */
+        /* X box color */
         .cell.x-box {
             background: aqua;
             color: #222;
         }
 
-        /* Only the box clicked by O becomes ocean blue */
+        /* O box color */
         .cell.o-box {
             background: #006994;
             color: white;
         }
 
-        /* Winning boxes become coral */
+        /* Scoreboard */
+        .scoreboard {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        .score-card {
+            padding: 12px 8px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            background: #fafafa;
+        }
+
+        .score-card h3 {
+            margin: 0 0 8px;
+            font-size: 16px;
+        }
+
+        .score-card .score {
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        #scoreX {
+            color: #008b8b;
+        }
+            
+
+        #scoreO {
+            color: #006994;
+        }
+
+        #scoreDraw {
+            color: #666;
+        }
+
+        /* Winning cells VFX */
         .cell.winning {
+            animation: winningGlow 0.65s ease-in-out infinite alternate;
             background: coral !important;
             color: #222;
             border-color: #e05b3f;
             text-decoration: line-through;
+            z-index: 1;
+        }
+
+        @keyframes winningGlow {
+            from {
+                box-shadow: 0 0 5px 2px rgba(255, 127, 80, 0.45);
+                transform: scale(1);
+            }
+
+            to {
+                box-shadow: 0 0 22px 7px rgba(255, 127, 80, 0.9);
+                transform: scale(1.06);
+            }
+        }
+
+        /* Confetti effect */
+        .confetti-piece {
+            position: fixed;
+            top: -12px;
+            width: 9px;
+            height: 14px;
+            z-index: 9999;
+            pointer-events: none;
+            animation: confettiFall 1.8s linear forwards;
+        }
+
+        @keyframes confettiFall {
+            to {
+                transform: translateY(105vh) rotate(720deg);
+                opacity: 0;
+            }
         }
 
         .cell:disabled {
@@ -126,7 +230,6 @@ const html = `
             background: #555;
         }
 
-        /* Result at bottom-left */
         #result {
             margin-top: 25px;
             text-align: left;
@@ -150,6 +253,7 @@ const html = `
                 height: 80px;
             }
         }
+        position: relative;
     </style>
 </head>
 
@@ -158,6 +262,12 @@ const html = `
     <h1>Tic Tac Toe Game</h1>
 
     <div class="game-container">
+        <button class="exit-btn" onclick="exitGame()" title="Quit Game">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 2v10"></path>
+                <path d="M6.5 5.5a9 9 0 1 0 11 0"></path>
+            </svg>
+        </button>
 
         <div class="symbol-choice">
             <label for="playerSymbol">
@@ -182,6 +292,30 @@ const html = `
 
         <p id="turnStatus">Player X's Turn</p>
 
+        <!-- Scoreboard -->
+        <div class="scoreboard">
+
+            <div class="score-card">
+                <h3>Player X</h3>
+                <div class="score" id="scoreX">0</div>
+                <small>Wins</small>
+            </div>
+
+            <div class="score-card">
+                <h3>Draws</h3>
+                <div class="score" id="scoreDraw">0</div>
+                <small>Matches</small>
+            </div>
+
+            <div class="score-card">
+                <h3>Player O</h3>
+                <div class="score" id="scoreO">0</div>
+                <small>Wins</small>
+            </div>
+
+        </div>
+
+        <!-- Game board -->
         <div class="board">
             <button class="cell"></button>
             <button class="cell"></button>
@@ -209,6 +343,62 @@ const html = `
         const result = document.getElementById("result");
         const playerSymbol = document.getElementById("playerSymbol");
 
+        const scoreXElement = document.getElementById("scoreX");
+        const scoreOElement = document.getElementById("scoreO");
+        const scoreDrawElement = document.getElementById("scoreDraw");
+
+        // Scoreboard values
+        let scores = {
+            X: 0,
+            O: 0,
+            draws: 0
+        };
+
+        // Display scores
+        function renderScores() {
+            scoreXElement.innerText = scores.X;
+            scoreOElement.innerText = scores.O;
+            scoreDrawElement.innerText = scores.draws;
+        }
+
+        // Winning VFX and confetti
+        function showWinVFX() {
+
+            const confettiColors = [
+                "#ff6b6b",
+                "#ffd93d",
+                "#6bcB77",
+                "#4d96ff",
+                "#b967ff"
+            ];
+
+            for (let i = 0; i < 65; i++) {
+
+                const piece = document.createElement("span");
+
+                piece.className = "confetti-piece";
+
+                piece.style.left = Math.random() * 100 + "vw";
+
+                piece.style.backgroundColor =
+                    confettiColors[
+                        Math.floor(Math.random() * confettiColors.length)
+                    ];
+
+                piece.style.animationDelay =
+                    Math.random() * 0.45 + "s";
+
+                piece.style.transform =
+                    "rotate(" + Math.random() * 360 + "deg)";
+
+                document.body.appendChild(piece);
+
+                setTimeout(() => {
+                    piece.remove();
+                }, 2400);
+            }
+        }
+
         let currentPlayer = "X";
         let player1Symbol = "X";
         let gameActive = true;
@@ -217,6 +407,7 @@ const html = `
 
         let winningCombination = [];
 
+        // Winning patterns
         const winningPatterns = [
             [0, 1, 2],
             [3, 4, 5],
@@ -232,12 +423,14 @@ const html = `
 
         // Save game data
         function saveGame() {
+
             const gameData = {
                 board: board,
                 currentPlayer: currentPlayer,
                 player1Symbol: player1Symbol,
                 gameActive: gameActive,
                 winningCombination: winningCombination,
+                scores: scores,
                 result: result.innerText
             };
 
@@ -249,13 +442,16 @@ const html = `
 
         // Load previous game
         function loadGame() {
-            const savedGame = localStorage.getItem("ticTacToeGame");
+
+            const savedGame =
+                localStorage.getItem("ticTacToeGame");
 
             if (!savedGame) {
                 return false;
             }
 
             try {
+
                 const gameData = JSON.parse(savedGame);
 
                 if (
@@ -276,6 +472,19 @@ const html = `
                 winningCombination =
                     gameData.winningCombination || [];
 
+                // Load saved scores
+                scores = gameData.scores || {
+                    X: 0,
+                    O: 0,
+                    draws: 0
+                };
+
+                scores.X = Number(scores.X) || 0;
+                scores.O = Number(scores.O) || 0;
+                scores.draws = Number(scores.draws) || 0;
+
+                renderScores();
+
                 result.innerText = gameData.result || "";
 
                 playerSymbol.value = player1Symbol;
@@ -289,14 +498,14 @@ const html = `
             }
         }
 
-        // Display game
+        // Display game board
         function renderGame() {
 
             cells.forEach((cell, index) => {
 
                 cell.innerText = board[index];
 
-                // Remove previous colors
+                // Remove previous colors and effects
                 cell.classList.remove(
                     "x-box",
                     "o-box",
@@ -306,28 +515,33 @@ const html = `
                 cell.disabled =
                     !gameActive || board[index] !== "";
 
-                // X box gets aqua
+                // X box becomes aqua
                 if (board[index] === "X") {
                     cell.classList.add("x-box");
                 }
 
-                // O box gets ocean blue
+                // O box becomes blue
                 if (board[index] === "O") {
                     cell.classList.add("o-box");
                 }
 
-                // Winning boxes get coral
+                // Only winning boxes get VFX
                 if (winningCombination.includes(index)) {
                     cell.classList.add("winning");
                 }
             });
 
             if (gameActive) {
+
                 turnStatus.innerText =
                     "Player " + currentPlayer + "'s Turn";
+
             } else {
+
                 turnStatus.innerText = "Game Finished";
             }
+
+            renderScores();
         }
 
         // Click a box
@@ -367,7 +581,16 @@ const html = `
 
                     gameActive = false;
 
+                    // Increase winner's score
+                    scores[currentPlayer]++;
+
+                    renderScores();
+
+                    // Show winning VFX
+                    showWinVFX();
+
                     renderGame();
+
                     saveGame();
 
                     return;
@@ -385,7 +608,13 @@ const html = `
 
                 gameActive = false;
 
+                // Increase draw score
+                scores.draws++;
+
+                renderScores();
+
                 renderGame();
+
                 saveGame();
 
                 return;
@@ -396,10 +625,19 @@ const html = `
                 currentPlayer === "X" ? "O" : "X";
 
             renderGame();
+
             saveGame();
         }
 
-        // Restart game
+        // Restart current round
+        function exitGame() {
+            if (window.history.length > 1) {
+                window.history.back();
+            } else {
+                window.close();
+            }
+        }
+
         function resetGame() {
 
             board = ["", "", "", "", "", "", "", "", ""];
@@ -415,6 +653,7 @@ const html = `
             result.innerText = "";
 
             renderGame();
+
             saveGame();
         }
 
